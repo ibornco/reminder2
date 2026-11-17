@@ -89,7 +89,8 @@ class MainActivity : ComponentActivity() {
         if (needsDarkDefault) prefs.edit().putBoolean("dark", false).putBoolean("journal_theme_migrated_v1", true).apply()
         mutableStateOf(prefs.getBoolean("dark", false))
     }
-    var english by remember { mutableStateOf(prefs.getBoolean("english", true)) }
+    val english = true
+    LaunchedEffect(Unit) { prefs.edit().putBoolean("english", true).apply() }
     var tab by remember { mutableIntStateOf(0) }
     var reminders by remember { mutableStateOf(loadReminders(prefs)) }
     var batches by remember { mutableStateOf(loadBatches(prefs)) }
@@ -110,9 +111,7 @@ class MainActivity : ComponentActivity() {
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
                 Header(
-                    dark, english,
-                    { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() },
-                    { english = !english; prefs.edit().putBoolean("english", english).apply() },
+                    english,
                     { tab = 1 },
                     {
                         val share = Intent(Intent.ACTION_SEND).apply {
@@ -130,7 +129,7 @@ class MainActivity : ComponentActivity() {
                         3 -> SimpleCategory(s("Birthdays", "تولدها", english), s("Important dates", "تاریخ‌های مهم", english), reminders.filter { it.category == "Birthdays" }, english, { reminderCategory = "Birthdays"; showReminder = true }, { item -> reminders = reminders.filterNot { it.id == item.id }; saveReminders(prefs, reminders) })
                         4 -> SimpleCategory(s("Miscellaneous", "متفرقه", english), s("Other reminders and notes", "یادآورها و یادداشت‌های دیگر", english), reminders.filter { it.category == "Miscellaneous" }, english, { reminderCategory = "Miscellaneous"; showReminder = true }, { item -> reminders = reminders.filterNot { it.id == item.id }; saveReminders(prefs, reminders) })
                         5 -> ExpiryScreen(batches, productCategories, english, { showBatch = true }, { item -> batches = batches.filterNot { it.id == item.id }; saveBatches(prefs, batches) })
-                        else -> ProfileScreen(english, dark, { english = it; prefs.edit().putBoolean("english", it).apply() }, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
+                        else -> ProfileScreen(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                     }
                 }
             }
@@ -146,10 +145,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable private fun Header(
-    dark: Boolean,
     english: Boolean,
-    toggleTheme: () -> Unit,
-    toggleLanguage: () -> Unit,
     openCalendar: () -> Unit,
     shareApp: () -> Unit
 ) {
@@ -165,7 +161,6 @@ class MainActivity : ComponentActivity() {
         }
         IconButton(onClick = { }) { Icon(Icons.Rounded.ChevronRight, null, tint = JournalInk, modifier = Modifier.size(22.dp)) }
         IconButton(onClick = openCalendar) { Icon(Icons.Rounded.Search, s("Search", "جست‌وجو", english), tint = JournalInk, modifier = Modifier.size(20.dp)) }
-        IconButton(onClick = toggleLanguage) { Text(if (english) "EN" else "فا", color = JournalRed, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -312,33 +307,22 @@ coming up", "تولد نزدیکی
     }
 }
 
-@Composable private fun ProfileScreen(english: Boolean, dark: Boolean, onLanguage: (Boolean) -> Unit, onTheme: (Boolean) -> Unit) {
+@Composable private fun ProfileScreen(dark: Boolean, onTheme: (Boolean) -> Unit) {
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-        Text(s("PROFILE", "پروفایل", english), color = JournalRed, fontSize = 10.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
-        Text(s("Your preferences", "تنظیمات برنامه", english), color = JournalInk, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+        Text("PROFILE", color = JournalRed, fontSize = 10.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
+        Text("Your preferences", color = JournalInk, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
         JournalCard(Modifier.fillMaxWidth()) {
-            Text(s("LANGUAGE", "زبان", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("APPEARANCE", color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(true to "English", false to "فارسی").forEach { (isEnglish, label) ->
-                    Surface(Modifier.weight(1f).clickable { onLanguage(isEnglish) }.border(1.dp, if (english == isEnglish) JournalRed else JournalInk.copy(alpha = .45f), RoundedCornerShape(13.dp)), shape = RoundedCornerShape(13.dp), color = if (english == isEnglish) Color(0xFFF0D8D0) else JournalCard) {
-                        Text(label, Modifier.padding(13.dp), color = JournalInk, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        }
-        JournalCard(Modifier.fillMaxWidth()) {
-            Text(s("APPEARANCE", "ظاهر برنامه", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(false to s("Warm paper", "کرم روشن", english), true to s("Night mode", "حالت شب", english)).forEach { (isDark, label) ->
+                listOf(false to "Warm paper", true to "Night mode").forEach { (isDark, label) ->
                     Surface(Modifier.weight(1f).clickable { onTheme(isDark) }.border(1.dp, if (dark == isDark) JournalRed else JournalInk.copy(alpha = .45f), RoundedCornerShape(13.dp)), shape = RoundedCornerShape(13.dp), color = if (dark == isDark) Color(0xFFF0D8D0) else JournalCard) {
                         Text(label, Modifier.padding(13.dp), color = JournalInk, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
-        Text(s("Reminder · Personal organizer & store expiry", "یادآور · مدیریت شخصی و انقضای فروشگاه", english), color = Muted, fontSize = 11.sp)
+        Text("Reminder · Personal organizer & store expiry", color = Muted, fontSize = 11.sp)
     }
 }
 
