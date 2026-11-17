@@ -22,6 +22,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -49,12 +51,17 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.UUID
 
-private val Lilac = Color(0xFF8066C8)
-private val PaleLilac = Color(0xFFF0ECFA)
-private val Ink = Color(0xFF29243A)
-private val Muted = Color(0xFF898397)
+private val Lilac = Color(0xFFFFD700)
+private val PaleLilac = Color(0xFF302B18)
+private val Ink = Color(0xFFF4F4F4)
+private val Muted = Color(0xFF969696)
+private val AppBlack = Color(0xFF121212)
+private val CardDark = Color(0xFF1E1E1E)
+private val CardDarkAlt = Color(0xFF292929)
 private fun s(en: String, fa: String, english: Boolean) = if (english) en else fa
 
 data class ReminderItem(val id: String, val title: String, val date: String, val time: String, val category: String, val done: Boolean = false)
@@ -73,7 +80,11 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun ReminderApp(context: Context) {
     val prefs = remember { context.getSharedPreferences("reminder_local", Context.MODE_PRIVATE) }
-    var dark by remember { mutableStateOf(prefs.getBoolean("dark", false)) }
+    var dark by remember {
+        val needsDarkDefault = !prefs.getBoolean("dark_mode_v3_migrated", false)
+        if (needsDarkDefault) prefs.edit().putBoolean("dark", true).putBoolean("dark_mode_v3_migrated", true).apply()
+        mutableStateOf(prefs.getBoolean("dark", true))
+    }
     var english by remember { mutableStateOf(prefs.getBoolean("english", true)) }
     var tab by remember { mutableIntStateOf(0) }
     var reminders by remember { mutableStateOf(loadReminders(prefs)) }
@@ -84,7 +95,7 @@ class MainActivity : ComponentActivity() {
     var reminderCategory by remember { mutableStateOf("Daily") }
     var barcode by remember { mutableStateOf("") }
     val scanner = remember { GmsBarcodeScanning.getClient(context) }
-    val colors = if (dark) darkColorScheme(primary = Color(0xFFB9A5F0), secondary = Lilac, background = Color(0xFF17151D), surface = Color(0xFF25212D), onBackground = Color(0xFFF4F0FA), onSurface = Color(0xFFF4F0FA)) else lightColorScheme(primary = Lilac, secondary = Color(0xFFB4A1E4), background = Color(0xFFF8F7FB), surface = Color.White, onBackground = Ink, onSurface = Ink)
+    val colors = if (dark) darkColorScheme(primary = Lilac, secondary = Lilac, background = AppBlack, surface = CardDark, surfaceVariant = CardDarkAlt, onBackground = Color(0xFFF5F5F5), onSurface = Color(0xFFF5F5F5)) else lightColorScheme(primary = Color(0xFF8A6A00), secondary = Color(0xFFB18A00), background = Color(0xFFF5F5F2), surface = Color.White, surfaceVariant = Color(0xFFEAEAEA), onBackground = Color(0xFF171717), onSurface = Color(0xFF171717))
     MaterialTheme(colorScheme = colors) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -94,7 +105,19 @@ class MainActivity : ComponentActivity() {
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                Header(dark, english, { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }, { english = !english; prefs.edit().putBoolean("english", english).apply() })
+                Header(
+                    dark, english,
+                    { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() },
+                    { english = !english; prefs.edit().putBoolean("english", english).apply() },
+                    { tab = 1 },
+                    {
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "Reminder — reminders and product expiry tracker")
+                        }
+                        context.startActivity(Intent.createChooser(share, s("Share Reminder", "اشتراک‌گذاری Reminder", english)))
+                    }
+                )
                 AnimatedContent(targetState = tab, transitionSpec = { (fadeIn(tween(170)) + slideInHorizontally(tween(170)) { it / 14 }) togetherWith (fadeOut(tween(120)) + slideOutHorizontally(tween(120)) { -it / 18 }) }, label = "tab-transition") { page ->
                     when (page) {
                         0 -> HomeScreen(reminders, batches, english, { tab = 1 }, { tab = 5 }, { reminderCategory = "Daily"; showReminder = true })
@@ -117,107 +140,177 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable private fun Header(dark: Boolean, english: Boolean, toggleTheme: () -> Unit, toggleLanguage: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(s("YOUR DAY, IN ORDER", "روزت رو مرتب کن", english), color = Muted, fontSize = 10.sp, letterSpacing = 1.2.sp)
-            Text("Reminder", color = MaterialTheme.colorScheme.onBackground, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+@Composable private fun Header(
+    dark: Boolean,
+    english: Boolean,
+    toggleTheme: () -> Unit,
+    toggleLanguage: () -> Unit,
+    openCalendar: () -> Unit,
+    shareApp: () -> Unit
+) {
+    val today = remember { SimpleDateFormat("dd MMM", Locale.ENGLISH).format(Calendar.getInstance().time) }
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(39.dp).background(Lilac, CircleShape), contentAlignment = Alignment.Center) {
+            Text("R", color = Color(0xFF171717), fontSize = 19.sp, fontWeight = FontWeight.Black)
         }
-        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.clickable { toggleLanguage() }) { Text(if (english) "EN" else "فا", modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), color = Lilac, fontWeight = FontWeight.Bold) }
-        Spacer(Modifier.width(8.dp))
-        Surface(shape = CircleShape, color = if (dark) Color(0xFF383044) else PaleLilac, modifier = Modifier.size(42.dp).clickable { toggleTheme() }) { Box(contentAlignment = Alignment.Center) { Icon(if (dark) Icons.Rounded.LightMode else Icons.Rounded.DarkMode, null, tint = Lilac) } }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(s("TODAY", "امروز", english), color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
+            Text("${s("Today, ", "امروز، ", english)}$today", color = MaterialTheme.colorScheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.clickable { toggleLanguage() }) {
+            Text(if (english) "EN" else "فا", modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp), color = Lilac, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(5.dp))
+        IconButton(onClick = openCalendar) { Icon(Icons.Rounded.CalendarMonth, s("Calendar", "تقویم", english), tint = Muted, modifier = Modifier.size(21.dp)) }
+        IconButton(onClick = toggleTheme) { Icon(Icons.Rounded.Settings, s("Appearance", "ظاهر", english), tint = Muted, modifier = Modifier.size(21.dp)) }
+        IconButton(onClick = shareApp) { Icon(Icons.Rounded.Share, s("Share", "اشتراک‌گذاری", english), tint = Muted, modifier = Modifier.size(20.dp)) }
     }
 }
 
-@Composable private fun HomeScreen(reminders: List<ReminderItem>, batches: List<BatchItem>, english: Boolean, goReminders: () -> Unit, goExpiry: () -> Unit, add: () -> Unit) {
+@Composable private fun HomeScreen(
+    reminders: List<ReminderItem>,
+    batches: List<BatchItem>,
+    english: Boolean,
+    goReminders: () -> Unit,
+    goExpiry: () -> Unit,
+    add: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
     val active = remember(reminders) { reminders.count { !it.done } }
+    val completed = remember(reminders) { reminders.count { it.done } }
     val expiring = remember(batches) { batches.count { daysUntil(it.expiry) in 0..7 } }
     val expired = remember(batches) { batches.count { daysUntil(it.expiry) < 0 } }
-    val upcoming = remember(reminders) { reminders.filter { !it.done }.take(3) }
-    val soon = remember(batches) { batches.filter { daysUntil(it.expiry) in 0..7 }.sortedBy { daysUntil(it.expiry) }.take(3) }
+    val upcoming = remember(reminders, query) {
+        reminders.filter { !it.done && (query.isBlank() || it.title.contains(query, true) || it.category.contains(query, true)) }
+            .sortedWith(compareBy<ReminderItem> { it.date }.thenBy { it.time }).take(4)
+    }
+    val soon = remember(batches, query) {
+        batches.filter { (query.isBlank() || it.product.contains(query, true) || it.category.contains(query, true)) && daysUntil(it.expiry) >= 0 }
+            .sortedBy { daysUntil(it.expiry) }.take(4)
+    }
+    val progress = if (reminders.isEmpty()) 0f else completed.toFloat() / reminders.size.toFloat()
 
     LazyColumn(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 17.dp),
-        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(17.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(top = 5.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(19.dp)
     ) {
         item {
-            Box(
-                Modifier.fillMaxWidth().heightIn(min = 190.dp)
-                    .background(Brush.linearGradient(listOf(Color(0xFF59439B), Color(0xFF8963C8), Color(0xFFB078C9))), RoundedCornerShape(28.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp
             ) {
-                Box(Modifier.align(Alignment.TopEnd).offset(x = 30.dp, y = (-34).dp).size(150.dp).background(Color.White.copy(alpha = .09f), CircleShape))
-                Box(Modifier.align(Alignment.BottomEnd).offset(x = 18.dp, y = 38.dp).size(112.dp).background(Color.White.copy(alpha = .07f), CircleShape))
-                Column(Modifier.fillMaxWidth().padding(22.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(color = Color.White.copy(alpha = .17f), shape = RoundedCornerShape(50)) {
-                            Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(s("YOUR PERSONAL SPACE", "فضای شخصی تو", english), color = Color.White, fontSize = 9.sp, letterSpacing = 1.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
+                Row(Modifier.padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Search, null, tint = Muted, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.weight(1f)) {
+                        if (query.isEmpty()) Text(s("Search reminders or products", "جست‌وجوی یادآور یا محصول", english), color = Muted, fontSize = 13.sp)
+                        BasicTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                    Spacer(Modifier.height(15.dp))
-                    Text(s("A clearer day starts here.", "روزت رو با نظم شروع کن.", english), color = Color.White, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
-                    Spacer(Modifier.height(6.dp))
-                    Text(s("Tasks, important dates and product expiry — all in one place.", "یادآورها، تاریخ‌های مهم و انقضای کالاها؛ همه یک‌جا.", english), color = Color.White.copy(alpha = .84f), fontSize = 11.sp, lineHeight = 17.sp)
-                    Spacer(Modifier.height(17.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(active.toString(), color = Color.White, fontSize = 31.sp, fontWeight = FontWeight.ExtraBold)
-                            Text(s("ACTIVE REMINDERS", "یادآور فعال", english), color = Color.White.copy(alpha = .78f), fontSize = 9.sp, letterSpacing = .8.sp)
-                        }
-                        FilledTonalButton(
-                            onClick = add,
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color.White, contentColor = Color(0xFF62469F)),
-                            shape = RoundedCornerShape(15.dp)
-                        ) {
-                            Icon(Icons.Rounded.Add, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(5.dp))
-                            Text(s("New reminder", "یادآور جدید", english), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+                    if (query.isNotEmpty()) IconButton(onClick = { query = "" }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Rounded.Close, s("Clear", "پاک کردن", english), tint = Muted, modifier = Modifier.size(16.dp))
                     }
                 }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HomeMetricCard(s("Reminders", "یادآورها", english), active.toString(), Icons.Rounded.NotificationsActive, Color(0xFF6F55B5), Color(0xFFF0EBFC), Modifier.weight(1f), goReminders)
-                HomeMetricCard(s("Expiring", "نزدیک انقضا", english), expiring.toString(), Icons.Rounded.Inventory2, Color(0xFFD28A42), Color(0xFFFFF2E4), Modifier.weight(1f), goExpiry)
-                HomeMetricCard(s("Expired", "منقضی", english), expired.toString(), Icons.Rounded.WarningAmber, Color(0xFFD46C70), Color(0xFFFFEDEF), Modifier.weight(1f), goExpiry)
+            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(s("YOUR SPACE", "نمای کلی", english), color = Lilac, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
+                        Text(s("Stay on top of today.", "امروز رو در دست بگیر.", english), color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.clickable { add() }) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Add, null, tint = Lilac, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(s("New", "جدید", english), color = Lilac, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+                Surface(shape = RoundedCornerShape(23.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(s("TODAY'S OVERVIEW", "گزارش امروز", english), color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(active.toString(), color = MaterialTheme.colorScheme.onSurface, fontSize = 38.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold)
+                                    Text(s("active reminders", "یادآور فعال", english), color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 6.dp))
+                                }
+                            }
+                            Box(Modifier.size(54.dp).border(1.dp, Lilac.copy(alpha = .35f), CircleShape).padding(5.dp).background(Lilac.copy(alpha = .12f), CircleShape), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Rounded.Bolt, null, tint = Lilac, modifier = Modifier.size(27.dp))
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(s("Completion", "انجام‌شده", english), color = Muted, fontSize = 10.sp)
+                                Text("${(progress * 100).toInt()}%", color = Lilac, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp),
+                                color = Lilac,
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OverviewStat(s("Open", "باز", english), active.toString(), Icons.Rounded.NotificationsActive, Modifier.weight(1f))
+                            OverviewStat(s("Expiring", "نزدیک انقضا", english), expiring.toString(), Icons.Rounded.Inventory2, Modifier.weight(1f))
+                            OverviewStat(s("Expired", "منقضی", english), expired.toString(), Icons.Rounded.WarningAmber, Modifier.weight(1f))
+                        }
+                    }
+                }
             }
         }
-        item {
-            HomeSectionHeading(s("Coming up", "یادآورهای پیش رو", english), s("See all", "مشاهده همه", english), goReminders)
-        }
+        item { HomeSectionHeading(s("Upcoming", "پیش رو", english), s("View all", "همه", english), goReminders) }
         if (upcoming.isEmpty()) {
-            item { EmptyState(s("Nothing scheduled yet", "هنوز یادآوری ثبت نکردی", english), s("Add your first reminder to get started", "برای شروع اولین یادآورت رو اضافه کن", english)) }
+            item { DarkEmptyState(s("Nothing coming up", "موردی برای نمایش نیست", english), s("Your next reminders will appear here.", "یادآورهای بعدی اینجا نمایش داده می‌شن.", english)) }
         } else {
             items(upcoming, key = { "home-reminder-${it.id}" }) { HomeReminderRow(it, english) }
         }
-        item {
-            HomeSectionHeading(s("Stock watch", "وضعیت انقضای محصولات", english), s("View inventory", "مشاهده محصولات", english), goExpiry)
-        }
+        item { HomeSectionHeading(s("Expiry watch", "مراقبت از انقضای کالا", english), s("Inventory", "محصولات", english), goExpiry) }
         if (soon.isEmpty()) {
-            item { EmptyState(s("All clear for now", "فعلاً محصول نزدیک انقضا نداری", english), s("Product batches nearing expiry will show here", "سری‌های نزدیک انقضا اینجا نمایش داده می‌شن", english)) }
+            item { DarkEmptyState(s("No upcoming expiry", "انقضای نزدیکی ثبت نشده", english), s("Product batches approaching expiry will appear here.", "سری‌های نزدیک انقضا اینجا نمایش داده می‌شن.", english)) }
         } else {
             items(soon, key = { "home-batch-${it.id}" }) { HomeBatchRow(it, english) }
         }
     }
 }
 
-@Composable private fun HomeMetricCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, accent: Color, tint: Color, modifier: Modifier, click: () -> Unit) {
-    Surface(
-        modifier = modifier.heightIn(min = 104.dp).clickable { click() },
-        shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp
-    ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Box(Modifier.size(31.dp).background(tint, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = accent, modifier = Modifier.size(18.dp))
+@Composable private fun OverviewStat(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Icon(icon, null, tint = Lilac, modifier = Modifier.size(17.dp))
+            Text(value, color = MaterialTheme.colorScheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+            Text(label, color = Muted, fontSize = 9.sp, maxLines = 1)
+        }
+    }
+}
+
+@Composable private fun DarkEmptyState(title: String, subtitle: String) {
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).background(Lilac.copy(alpha = .12f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.EventAvailable, null, tint = Lilac, modifier = Modifier.size(20.dp))
             }
-            Text(value, fontSize = 23.sp, lineHeight = 25.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-            Text(title, fontSize = 9.sp, lineHeight = 12.sp, color = Muted, maxLines = 2)
+            Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(subtitle, color = Muted, fontSize = 10.sp)
+            }
         }
     }
 }
@@ -233,17 +326,17 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable private fun HomeReminderRow(item: ReminderItem, english: Boolean) {
-    Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+    Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(42.dp).background(Color(0xFFF0EBFC), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(42.dp).background(Lilac.copy(alpha = .13f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.EventNote, null, tint = Lilac, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(item.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                Text(item.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
                 Text("${item.date}  •  ${categoryLabel(item.category, english)}", color = Muted, fontSize = 10.sp, maxLines = 1)
             }
-            Surface(color = Color(0xFFF0EBFC), shape = RoundedCornerShape(10.dp)) {
-                Text(item.time, modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp), color = Color(0xFF6F55B5), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
+                Text(item.time, modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp), color = Lilac, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
     }
@@ -251,16 +344,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun HomeBatchRow(item: BatchItem, english: Boolean) {
     val days = daysUntil(item.expiry)
-    val warning = days <= 7
-    val accent = if (days < 0) Color(0xFFD46C70) else if (warning) Color(0xFFD28A42) else Lilac
-    val soft = if (days < 0) Color(0xFFFFEDEF) else if (warning) Color(0xFFFFF2E4) else PaleLilac
-    Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+    val accent = if (days < 0) Color(0xFFFF6B6B) else if (days <= 7) Lilac else Color(0xFFB8B8B8)
+    Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(42.dp).background(soft, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(42.dp).background(accent.copy(alpha = .12f), RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.Inventory2, null, tint = accent, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(item.product, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                Text(item.product, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
                 Text("${item.quantity} ${s("units", "عدد", english)}  •  ${item.expiry}", color = Muted, fontSize = 10.sp)
             }
             Text(if (days < 0) s("Expired", "منقضی", english) else if (days == 0) s("Today", "امروز", english) else "$days ${s("days", "روز", english)}", color = accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
@@ -295,7 +386,7 @@ class MainActivity : ComponentActivity() {
 @Composable private fun ReminderRow(item: ReminderItem, english: Boolean, toggle: () -> Unit, delete: () -> Unit) {
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Surface(shape = RoundedCornerShape(12.dp), color = PaleLilac, modifier = Modifier.size(42.dp).clickable { toggle() }) { Box(contentAlignment = Alignment.Center) { Icon(if (item.done) Icons.Rounded.CheckCircle else Icons.Rounded.Notifications, null, tint = Lilac) } }; Column(Modifier.weight(1f).padding(horizontal = 11.dp)) { Text(item.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface); Text("${item.date}  •  ${item.time}  •  ${categoryLabel(item.category, english)}", color = Muted, fontSize = 10.sp) }; IconButton(onClick = delete) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) } } }
 }
-@Composable private fun BatchRow(item: BatchItem, english: Boolean, delete: () -> Unit) { val days = daysUntil(item.expiry); val warning = days < 0 || days <= 7; Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Surface(shape = RoundedCornerShape(12.dp), color = if (warning) Color(0xFFFFEEE9) else PaleLilac, modifier = Modifier.size(42.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Inventory2, null, tint = if (warning) Color(0xFFD77B67) else Lilac) } }; Column(Modifier.weight(1f).padding(horizontal = 10.dp)) { Text(item.product, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface); Text("${item.quantity} ${s("units", "عدد", english)}  •  ${item.expiry}", fontSize = 11.sp, color = Muted); if (item.barcode.isNotBlank()) Text("Barcode: ${item.barcode}", fontSize = 9.sp, color = Muted) }; Text(if (days < 0) s("Expired", "منقضی", english) else if (days == 0) s("Today", "امروز", english) else "$days ${s("days", "روز", english)}", color = if (warning) Color(0xFFD77B67) else Lilac, fontWeight = FontWeight.Bold, fontSize = 10.sp); IconButton(onClick = delete) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) } } } }
+@Composable private fun BatchRow(item: BatchItem, english: Boolean, delete: () -> Unit) { val days = daysUntil(item.expiry); val warning = days < 0 || days <= 7; Surface(shape = RoundedCornerShape(17.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) { Row(Modifier.fillMaxWidth().padding(13.dp), verticalAlignment = Alignment.CenterVertically) { Surface(shape = RoundedCornerShape(12.dp), color = if (warning) Color(0xFF35251F) else PaleLilac, modifier = Modifier.size(42.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Inventory2, null, tint = if (warning) Color(0xFFFF8A65) else Lilac) } }; Column(Modifier.weight(1f).padding(horizontal = 10.dp)) { Text(item.product, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface); Text("${item.quantity} ${s("units", "عدد", english)}  •  ${item.expiry}", fontSize = 11.sp, color = Muted); if (item.barcode.isNotBlank()) Text("Barcode: ${item.barcode}", fontSize = 9.sp, color = Muted) }; Text(if (days < 0) s("Expired", "منقضی", english) else if (days == 0) s("Today", "امروز", english) else "$days ${s("days", "روز", english)}", color = if (warning) Color(0xFFFF8A65) else Lilac, fontWeight = FontWeight.Bold, fontSize = 10.sp); IconButton(onClick = delete) { Icon(Icons.Rounded.DeleteOutline, null, tint = Muted) } } } }
 
 @Composable private fun EmptyState(title: String, subtitle: String) { Column(Modifier.fillMaxWidth().padding(vertical = 35.dp), horizontalAlignment = Alignment.CenterHorizontally) { Surface(shape = CircleShape, color = PaleLilac, modifier = Modifier.size(62.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.AutoAwesome, null, tint = Lilac, modifier = Modifier.size(28.dp)) } }; Spacer(Modifier.height(12.dp)); Text(title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground); Text(subtitle, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center) } }
 
@@ -309,24 +400,24 @@ class MainActivity : ComponentActivity() {
         Triple(s("Expiry", "انقضا", english), Icons.Rounded.Inventory2, 5)
     )
     NavigationBar(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 86.dp),
-        containerColor = Color(0xFF493579),
-        tonalElevation = 12.dp,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp).border(width = 0.6.dp, color = Color(0xFF303030)),
+        containerColor = AppBlack,
+        tonalElevation = 0.dp,
         windowInsets = NavigationBarDefaults.windowInsets
     ) {
         entries.forEach { entry ->
             NavigationBarItem(
                 selected = selected == entry.third,
                 onClick = { onSelect(entry.third) },
-                icon = { Icon(entry.second, contentDescription = entry.first, modifier = Modifier.size(26.dp)) },
-                label = { Text(entry.first, fontSize = 10.sp, maxLines = 1, fontWeight = if (selected == entry.third) FontWeight.Bold else FontWeight.Medium) },
+                icon = { Icon(entry.second, contentDescription = entry.first, modifier = Modifier.size(if (selected == entry.third) 25.dp else 22.dp)) },
+                label = { Text(entry.first, fontSize = 9.sp, maxLines = 1, fontWeight = if (selected == entry.third) FontWeight.Bold else FontWeight.Medium) },
                 alwaysShowLabel = true,
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.White,
-                    selectedTextColor = Color.White,
-                    unselectedIconColor = Color(0xFFD6C9F1),
-                    unselectedTextColor = Color(0xFFD6C9F1),
-                    indicatorColor = Color(0xFF8066C8)
+                    selectedIconColor = Lilac,
+                    selectedTextColor = Lilac,
+                    unselectedIconColor = Color(0xFF858585),
+                    unselectedTextColor = Color(0xFF858585),
+                    indicatorColor = Lilac.copy(alpha = .12f)
                 )
             )
         }
