@@ -55,13 +55,17 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.UUID
 
-private val Lilac = Color(0xFFFFD700)
-private val PaleLilac = Color(0xFF302B18)
-private val Ink = Color(0xFFF4F4F4)
-private val Muted = Color(0xFF969696)
-private val AppBlack = Color(0xFF121212)
-private val CardDark = Color(0xFF1E1E1E)
-private val CardDarkAlt = Color(0xFF292929)
+private val Lilac = Color(0xFFA52A2A) // Vivid Journal brick accent
+private val PaleLilac = Color(0xFFF3E5D8)
+private val Ink = Color(0xFF3E2723)
+private val Muted = Color(0xFF8D756A)
+private val AppBlack = Color(0xFFF3E5D8)
+private val CardDark = Color(0xFFFFF8F0)
+private val CardDarkAlt = Color(0xFFEBD9C9)
+private val JournalPaper = Color(0xFFF3E5D8)
+private val JournalCard = Color(0xFFFFF8F0)
+private val JournalInk = Color(0xFF3E2723)
+private val JournalRed = Color(0xFFA52A2A)
 private fun s(en: String, fa: String, english: Boolean) = if (english) en else fa
 
 data class ReminderItem(val id: String, val title: String, val date: String, val time: String, val category: String, val done: Boolean = false)
@@ -81,9 +85,9 @@ class MainActivity : ComponentActivity() {
 @Composable private fun ReminderApp(context: Context) {
     val prefs = remember { context.getSharedPreferences("reminder_local", Context.MODE_PRIVATE) }
     var dark by remember {
-        val needsDarkDefault = !prefs.getBoolean("dark_mode_v3_migrated", false)
-        if (needsDarkDefault) prefs.edit().putBoolean("dark", true).putBoolean("dark_mode_v3_migrated", true).apply()
-        mutableStateOf(prefs.getBoolean("dark", true))
+        val needsDarkDefault = !prefs.getBoolean("journal_theme_migrated_v1", false)
+        if (needsDarkDefault) prefs.edit().putBoolean("dark", false).putBoolean("journal_theme_migrated_v1", true).apply()
+        mutableStateOf(prefs.getBoolean("dark", false))
     }
     var english by remember { mutableStateOf(prefs.getBoolean("english", true)) }
     var tab by remember { mutableIntStateOf(0) }
@@ -95,7 +99,7 @@ class MainActivity : ComponentActivity() {
     var reminderCategory by remember { mutableStateOf("Daily") }
     var barcode by remember { mutableStateOf("") }
     val scanner = remember { GmsBarcodeScanning.getClient(context) }
-    val colors = if (dark) darkColorScheme(primary = Lilac, secondary = Lilac, background = AppBlack, surface = CardDark, surfaceVariant = CardDarkAlt, onBackground = Color(0xFFF5F5F5), onSurface = Color(0xFFF5F5F5)) else lightColorScheme(primary = Color(0xFF8A6A00), secondary = Color(0xFFB18A00), background = Color(0xFFF5F5F2), surface = Color.White, surfaceVariant = Color(0xFFEAEAEA), onBackground = Color(0xFF171717), onSurface = Color(0xFF171717))
+    val colors = if (dark) darkColorScheme(primary = Color(0xFFE1A39A), secondary = Color(0xFFD8B6A8), background = Color(0xFF211A18), surface = Color(0xFF302623), surfaceVariant = Color(0xFF493A35), onBackground = Color(0xFFFFF4E9), onSurface = Color(0xFFFFF4E9)) else lightColorScheme(primary = JournalRed, secondary = Color(0xFF7B342C), background = JournalPaper, surface = JournalCard, surfaceVariant = Color(0xFFEBD9C9), onBackground = JournalInk, onSurface = JournalInk)
     MaterialTheme(colorScheme = colors) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
@@ -120,12 +124,13 @@ class MainActivity : ComponentActivity() {
                 )
                 AnimatedContent(targetState = tab, transitionSpec = { (fadeIn(tween(170)) + slideInHorizontally(tween(170)) { it / 14 }) togetherWith (fadeOut(tween(120)) + slideOutHorizontally(tween(120)) { -it / 18 }) }, label = "tab-transition") { page ->
                     when (page) {
-                        0 -> HomeScreen(reminders, batches, english, { tab = 1 }, { tab = 5 }, { reminderCategory = "Daily"; showReminder = true })
+                        0 -> HomeScreen(reminders, batches, english, { tab = 1 }, { tab = 5 }, { reminderCategory = "Daily"; showReminder = true }, { item -> reminders = reminders.map { if (it.id == item.id) it.copy(done = !it.done) else it }; saveReminders(prefs, reminders) })
                         1 -> ReminderList(reminders, english, { reminderCategory = "Daily"; showReminder = true }, { item -> reminders = reminders.map { if (it.id == item.id) it.copy(done = !it.done) else it }; saveReminders(prefs, reminders) }, { item -> reminders = reminders.filterNot { it.id == item.id }; saveReminders(prefs, reminders) })
                         2 -> SimpleCategory(s("Installments", "اقساط", english), s("Payments and due dates", "پرداخت‌ها و سررسیدها", english), reminders.filter { it.category == "Installments" }, english, { reminderCategory = "Installments"; showReminder = true }, { item -> reminders = reminders.filterNot { it.id == item.id }; saveReminders(prefs, reminders) })
                         3 -> SimpleCategory(s("Birthdays", "تولدها", english), s("Important dates", "تاریخ‌های مهم", english), reminders.filter { it.category == "Birthdays" }, english, { reminderCategory = "Birthdays"; showReminder = true }, { item -> reminders = reminders.filterNot { it.id == item.id }; saveReminders(prefs, reminders) })
                         4 -> SimpleCategory(s("Miscellaneous", "متفرقه", english), s("Other reminders and notes", "یادآورها و یادداشت‌های دیگر", english), reminders.filter { it.category == "Miscellaneous" }, english, { reminderCategory = "Miscellaneous"; showReminder = true }, { item -> reminders = reminders.filterNot { it.id == item.id }; saveReminders(prefs, reminders) })
-                        else -> ExpiryScreen(batches, productCategories, english, { showBatch = true }, { item -> batches = batches.filterNot { it.id == item.id }; saveBatches(prefs, batches) })
+                        5 -> ExpiryScreen(batches, productCategories, english, { showBatch = true }, { item -> batches = batches.filterNot { it.id == item.id }; saveBatches(prefs, batches) })
+                        else -> ProfileScreen(english, dark, { english = it; prefs.edit().putBoolean("english", it).apply() }, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                     }
                 }
             }
@@ -148,27 +153,19 @@ class MainActivity : ComponentActivity() {
     openCalendar: () -> Unit,
     shareApp: () -> Unit
 ) {
-    val today = remember { SimpleDateFormat("dd MMM", Locale.ENGLISH).format(Calendar.getInstance().time) }
+    val today = remember { SimpleDateFormat("EEEE, MMMM d", Locale.ENGLISH).format(Calendar.getInstance().time) }
     Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 13.dp),
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 18.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(39.dp).background(Lilac, CircleShape), contentAlignment = Alignment.Center) {
-            Text("R", color = Color(0xFF171717), fontSize = 19.sp, fontWeight = FontWeight.Black)
+        IconButton(onClick = { }) { Icon(Icons.Rounded.ChevronLeft, null, tint = JournalInk, modifier = Modifier.size(22.dp)) }
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(s("TODAY", "امروز", english), color = Muted, fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
+            Text(today, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, maxLines = 1)
         }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(s("TODAY", "امروز", english), color = Muted, fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold)
-            Text("${s("Today, ", "امروز، ", english)}$today", color = MaterialTheme.colorScheme.onBackground, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
-        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.clickable { toggleLanguage() }) {
-            Text(if (english) "EN" else "فا", modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp), color = Lilac, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.width(5.dp))
-        IconButton(onClick = openCalendar) { Icon(Icons.Rounded.CalendarMonth, s("Calendar", "تقویم", english), tint = Muted, modifier = Modifier.size(21.dp)) }
-        IconButton(onClick = toggleTheme) { Icon(Icons.Rounded.Settings, s("Appearance", "ظاهر", english), tint = Muted, modifier = Modifier.size(21.dp)) }
-        IconButton(onClick = shareApp) { Icon(Icons.Rounded.Share, s("Share", "اشتراک‌گذاری", english), tint = Muted, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = { }) { Icon(Icons.Rounded.ChevronRight, null, tint = JournalInk, modifier = Modifier.size(22.dp)) }
+        IconButton(onClick = openCalendar) { Icon(Icons.Rounded.Search, s("Search", "جست‌وجو", english), tint = JournalInk, modifier = Modifier.size(20.dp)) }
+        IconButton(onClick = toggleLanguage) { Text(if (english) "EN" else "فا", color = JournalRed, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -178,116 +175,170 @@ class MainActivity : ComponentActivity() {
     english: Boolean,
     goReminders: () -> Unit,
     goExpiry: () -> Unit,
-    add: () -> Unit
+    add: () -> Unit,
+    toggleTask: (ReminderItem) -> Unit
 ) {
-    var query by remember { mutableStateOf("") }
-    val active = remember(reminders) { reminders.count { !it.done } }
-    val completed = remember(reminders) { reminders.count { it.done } }
-    val expiring = remember(batches) { batches.count { daysUntil(it.expiry) in 0..7 } }
-    val expired = remember(batches) { batches.count { daysUntil(it.expiry) < 0 } }
-    val upcoming = remember(reminders, query) {
-        reminders.filter { !it.done && (query.isBlank() || it.title.contains(query, true) || it.category.contains(query, true)) }
-            .sortedWith(compareBy<ReminderItem> { it.date }.thenBy { it.time }).take(4)
-    }
-    val soon = remember(batches, query) {
-        batches.filter { (query.isBlank() || it.product.contains(query, true) || it.category.contains(query, true)) && daysUntil(it.expiry) >= 0 }
-            .sortedBy { daysUntil(it.expiry) }.take(4)
-    }
-    val progress = if (reminders.isEmpty()) 0f else completed.toFloat() / reminders.size.toFloat()
-
+    val task = remember(reminders) { reminders.filter { it.category == "Daily" && !it.done }.minWithOrNull(compareBy<ReminderItem> { it.date }.thenBy { it.time }) }
+    val expiring = remember(batches) { batches.filter { daysUntil(it.expiry) in 0..7 }.minByOrNull { daysUntil(it.expiry) } }
+    val work = remember(reminders) { reminders.filter { it.category == "Installments" && !it.done }.minWithOrNull(compareBy<ReminderItem> { it.date }.thenBy { it.time }) }
+    val birthdays = remember(reminders) { reminders.filter { it.category == "Birthdays" && !it.done }.take(2) }
+    val doneCount = remember(reminders) { reminders.count { it.done } }
+    val total = reminders.size
+    val completion = if (total == 0) 0 else (doneCount * 100 / total)
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 18.dp),
-        contentPadding = PaddingValues(top = 5.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(19.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         item {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 0.dp
-            ) {
-                Row(Modifier.padding(horizontal = 15.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Search, null, tint = Muted, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Box(Modifier.weight(1f)) {
-                        if (query.isEmpty()) Text(s("Search reminders or products", "جست‌وجوی یادآور یا محصول", english), color = Muted, fontSize = 13.sp)
-                        BasicTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            singleLine = true,
-                            textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    if (query.isNotEmpty()) IconButton(onClick = { query = "" }, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Rounded.Close, s("Clear", "پاک کردن", english), tint = Muted, modifier = Modifier.size(16.dp))
-                    }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(s("A LITTLE MORE INTENTIONAL", "با نظم و آرامش", english), color = JournalRed, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
+                    Text(s("Your day,
+beautifully planned.", "روزت رو
+زیباتر برنامه‌ریزی کن.", english), color = JournalInk, fontSize = 28.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+                }
+                Surface(shape = CircleShape, color = Color(0xFFE8D1C0), modifier = Modifier.size(58.dp).border(1.dp, JournalInk, CircleShape)) {
+                    Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.AutoStories, null, tint = JournalRed, modifier = Modifier.size(27.dp)) }
                 }
             }
         }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(s("YOUR SPACE", "نمای کلی", english), color = Lilac, fontSize = 10.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold)
-                        Text(s("Stay on top of today.", "امروز رو در دست بگیر.", english), color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold)
+            JournalCard(Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(s("TODAY'S TASK", "کار امروز", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+                        Text(task?.title ?: s("A fresh page awaits", "یک روز تازه منتظرته", english), color = JournalInk, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+                        Text(task?.let { "${it.date}  ·  ${it.time}" } ?: s("Add the one thing you want to get done today.", "مهم‌ترین کاری که امروز می‌خوای انجام بدی ثبت کن.", english), color = Muted, fontSize = 11.sp)
                     }
-                    Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.clickable { add() }) {
-                        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Add, null, tint = Lilac, modifier = Modifier.size(17.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(s("New", "جدید", english), color = Lilac, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    if (task != null) {
+                        IconButton(onClick = { toggleTask(task) }, modifier = Modifier.size(43.dp).border(1.3.dp, JournalRed, CircleShape)) {
+                            Icon(Icons.Rounded.Check, s("Mark done", "انجام شد", english), tint = JournalRed, modifier = Modifier.size(23.dp))
                         }
+                    } else {
+                        Icon(Icons.Rounded.EditNote, null, tint = JournalRed, modifier = Modifier.size(34.dp).clickable { add() })
                     }
                 }
-                Surface(shape = RoundedCornerShape(23.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(s("TODAY'S OVERVIEW", "گزارش امروز", english), color = Muted, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
-                                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(active.toString(), color = MaterialTheme.colorScheme.onSurface, fontSize = 38.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold)
-                                    Text(s("active reminders", "یادآور فعال", english), color = Muted, fontSize = 11.sp, modifier = Modifier.padding(bottom = 6.dp))
-                                }
-                            }
-                            Box(Modifier.size(54.dp).border(1.dp, Lilac.copy(alpha = .35f), CircleShape).padding(5.dp).background(Lilac.copy(alpha = .12f), CircleShape), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Rounded.Bolt, null, tint = Lilac, modifier = Modifier.size(27.dp))
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(s("Completion", "انجام‌شده", english), color = Muted, fontSize = 10.sp)
-                                Text("${(progress * 100).toInt()}%", color = Lilac, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                            LinearProgressIndicator(
-                                progress = { progress },
-                                modifier = Modifier.fillMaxWidth().height(6.dp),
-                                color = Lilac,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OverviewStat(s("Open", "باز", english), active.toString(), Icons.Rounded.NotificationsActive, Modifier.weight(1f))
-                            OverviewStat(s("Expiring", "نزدیک انقضا", english), expiring.toString(), Icons.Rounded.Inventory2, Modifier.weight(1f))
-                            OverviewStat(s("Expired", "منقضی", english), expired.toString(), Icons.Rounded.WarningAmber, Modifier.weight(1f))
-                        }
+                Spacer(Modifier.height(13.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    JournalPill("$doneCount/$total", s("completed", "انجام‌شده", english), Modifier.weight(1f))
+                    JournalPill("$completion%", s("progress", "پیشرفت", english), Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Text(s("+ Add today's task", "+ ثبت کار امروز", english), color = JournalRed, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { add() }.padding(4.dp))
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                JournalMiniCard(s("NEAR EXPIRY", "انقضای نزدیک", english), expiring?.product ?: s("All clear", "موردی نیست", english), expiring?.let { "${daysUntil(it.expiry)} ${s("days left", "روز مانده", english)}" } ?: s("No urgent batches", "سری فوری نداری", english), Icons.Rounded.Inventory2, Modifier.weight(1f), goExpiry, expiring != null)
+                JournalMiniCard(s("WORK DEADLINE", "موعد کاری", english), work?.title ?: s("No deadlines", "بدون سررسید", english), work?.let { "${it.date} · ${it.time}" } ?: s("You're up to date", "همه‌چیز مرتبه", english), Icons.Rounded.Event, Modifier.weight(1f), goReminders, work != null)
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                JournalCard(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Cake, null, tint = JournalRed, modifier = Modifier.size(19.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(s("BIRTHDAYS", "تولدها", english), color = JournalRed, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    if (birthdays.isEmpty()) Text(s("No birthdays
+coming up", "تولد نزدیکی
+ثبت نشده", english), color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    else birthdays.forEach { Text("• ${it.title}", color = JournalInk, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(vertical = 3.dp)) }
+                    Spacer(Modifier.height(8.dp))
+                    Text(s("Open list →", "مشاهده ←", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { goReminders() })
+                }
+                JournalCard(Modifier.weight(1f)) {
+                    Icon(Icons.Rounded.EditNote, null, tint = JournalRed, modifier = Modifier.size(21.dp))
+                    Spacer(Modifier.height(7.dp))
+                    Text(s("QUICK NOTE", "یادداشت سریع", english), color = JournalRed, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
+                    Spacer(Modifier.height(5.dp))
+                    Text(s("Capture a thought before it slips away.", "فکری داری؟ قبل از فراموشی ثبتش کن.", english), color = Muted, fontSize = 11.sp, lineHeight = 15.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(s("+ Write a note", "+ یادداشت جدید", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { add() })
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(s("Your personal space", "بخش شخصی", english), modifier = Modifier.weight(1f), color = JournalInk, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+                Text(s("View all →", "همه موارد ←", english), color = JournalRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { goReminders() })
+            }
+        }
+        val personal = reminders.filter { it.category == "Daily" || it.category == "Miscellaneous" }.take(3)
+        if (personal.isEmpty()) item { Text(s("Your reminders will appear here.", "یادآورهای شخصی اینجا نمایش داده می‌شن.", english), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp)) }
+        else items(personal, key = { "journal-${it.id}" }) { item ->
+            Surface(shape = RoundedCornerShape(16.dp), color = JournalCard, modifier = Modifier.fillMaxWidth().border(1.dp, JournalInk.copy(alpha = .55f), RoundedCornerShape(16.dp))) {
+                Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (item.done) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked, null, tint = JournalRed, modifier = Modifier.clickable { toggleTask(item) })
+                    Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                        Text(item.title, color = JournalInk, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${item.date} · ${item.time}", color = Muted, fontSize = 10.sp)
+                    }
+                    Text(categoryLabel(item.category, english), color = JournalRed, fontSize = 9.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun JournalCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Surface(modifier = modifier.border(1.dp, JournalInk.copy(alpha = .75f), RoundedCornerShape(19.dp)), shape = RoundedCornerShape(19.dp), color = JournalCard, shadowElevation = 2.dp) {
+        Column(Modifier.padding(15.dp), content = content)
+    }
+}
+
+@Composable private fun JournalPill(value: String, label: String, modifier: Modifier = Modifier) {
+    Row(modifier.background(Color(0xFFF0E0D2), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(value, color = JournalRed, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = Muted, fontSize = 10.sp)
+    }
+}
+
+@Composable private fun JournalMiniCard(title: String, value: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit, warning: Boolean) {
+    JournalCard(modifier.clickable { onClick() }) {
+        Icon(icon, null, tint = JournalRed, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(9.dp))
+        Text(title, color = JournalRed, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .6.sp, maxLines = 1)
+        Spacer(Modifier.height(7.dp))
+        Text(value, color = JournalInk, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, maxLines = 2)
+        Spacer(Modifier.height(4.dp))
+        Text(detail, color = if (warning) JournalRed else Muted, fontSize = 10.sp, fontWeight = if (warning) FontWeight.Bold else FontWeight.Normal, maxLines = 2)
+    }
+}
+
+@Composable private fun ProfileScreen(english: Boolean, dark: Boolean, onLanguage: (Boolean) -> Unit, onTheme: (Boolean) -> Unit) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(20.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+        Text(s("PROFILE", "پروفایل", english), color = JournalRed, fontSize = 10.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.Bold)
+        Text(s("Your preferences", "تنظیمات برنامه", english), color = JournalInk, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+        JournalCard(Modifier.fillMaxWidth()) {
+            Text(s("LANGUAGE", "زبان", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(true to "English", false to "فارسی").forEach { (isEnglish, label) ->
+                    Surface(Modifier.weight(1f).clickable { onLanguage(isEnglish) }.border(1.dp, if (english == isEnglish) JournalRed else JournalInk.copy(alpha = .45f), RoundedCornerShape(13.dp)), shape = RoundedCornerShape(13.dp), color = if (english == isEnglish) Color(0xFFF0D8D0) else JournalCard) {
+                        Text(label, Modifier.padding(13.dp), color = JournalInk, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
-        item { HomeSectionHeading(s("Upcoming", "پیش رو", english), s("View all", "همه", english), goReminders) }
-        if (upcoming.isEmpty()) {
-            item { DarkEmptyState(s("Nothing coming up", "موردی برای نمایش نیست", english), s("Your next reminders will appear here.", "یادآورهای بعدی اینجا نمایش داده می‌شن.", english)) }
-        } else {
-            items(upcoming, key = { "home-reminder-${it.id}" }) { HomeReminderRow(it, english) }
+        JournalCard(Modifier.fillMaxWidth()) {
+            Text(s("APPEARANCE", "ظاهر برنامه", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(false to s("Warm paper", "کرم روشن", english), true to s("Night mode", "حالت شب", english)).forEach { (isDark, label) ->
+                    Surface(Modifier.weight(1f).clickable { onTheme(isDark) }.border(1.dp, if (dark == isDark) JournalRed else JournalInk.copy(alpha = .45f), RoundedCornerShape(13.dp)), shape = RoundedCornerShape(13.dp), color = if (dark == isDark) Color(0xFFF0D8D0) else JournalCard) {
+                        Text(label, Modifier.padding(13.dp), color = JournalInk, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
         }
-        item { HomeSectionHeading(s("Expiry watch", "مراقبت از انقضای کالا", english), s("Inventory", "محصولات", english), goExpiry) }
-        if (soon.isEmpty()) {
-            item { DarkEmptyState(s("No upcoming expiry", "انقضای نزدیکی ثبت نشده", english), s("Product batches approaching expiry will appear here.", "سری‌های نزدیک انقضا اینجا نمایش داده می‌شن.", english)) }
-        } else {
-            items(soon, key = { "home-batch-${it.id}" }) { HomeBatchRow(it, english) }
-        }
+        Text(s("Reminder · Personal organizer & store expiry", "یادآور · مدیریت شخصی و انقضای فروشگاه", english), color = Muted, fontSize = 11.sp)
     }
 }
 
@@ -332,7 +383,7 @@ class MainActivity : ComponentActivity() {
                 Icon(Icons.Rounded.EventNote, null, tint = Lilac, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(item.title, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                Text(item.title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                 Text("${item.date}  •  ${categoryLabel(item.category, english)}", color = Muted, fontSize = 10.sp, maxLines = 1)
             }
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
@@ -351,7 +402,7 @@ class MainActivity : ComponentActivity() {
                 Icon(Icons.Rounded.Inventory2, null, tint = accent, modifier = Modifier.size(21.dp))
             }
             Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(item.product, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                Text(item.product, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                 Text("${item.quantity} ${s("units", "عدد", english)}  •  ${item.expiry}", color = Muted, fontSize = 10.sp)
             }
             Text(if (days < 0) s("Expired", "منقضی", english) else if (days == 0) s("Today", "امروز", english) else "$days ${s("days", "روز", english)}", color = accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
@@ -391,35 +442,34 @@ class MainActivity : ComponentActivity() {
 @Composable private fun EmptyState(title: String, subtitle: String) { Column(Modifier.fillMaxWidth().padding(vertical = 35.dp), horizontalAlignment = Alignment.CenterHorizontally) { Surface(shape = CircleShape, color = PaleLilac, modifier = Modifier.size(62.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.AutoAwesome, null, tint = Lilac, modifier = Modifier.size(28.dp)) } }; Spacer(Modifier.height(12.dp)); Text(title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground); Text(subtitle, color = Muted, fontSize = 11.sp, textAlign = TextAlign.Center) } }
 
 @Composable private fun BottomBar(selected: Int, english: Boolean, onSelect: (Int) -> Unit) {
-    val entries = listOf(
-        Triple(s("Home", "خانه", english), Icons.Rounded.Home, 0),
-        Triple(s("Daily", "روزانه", english), Icons.Rounded.Notifications, 1),
-        Triple(s("Bills", "اقساط", english), Icons.Rounded.Payments, 2),
-        Triple(s("Birthdays", "تولدها", english), Icons.Rounded.Cake, 3),
-        Triple(s("More", "متفرقه", english), Icons.Rounded.MoreHoriz, 4),
-        Triple(s("Expiry", "انقضا", english), Icons.Rounded.Inventory2, 5)
-    )
-    NavigationBar(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 78.dp).border(width = 0.6.dp, color = Color(0xFF303030)),
-        containerColor = AppBlack,
-        tonalElevation = 0.dp,
-        windowInsets = NavigationBarDefaults.windowInsets
+    val selectedNav = when (selected) { 5 -> 0; 6 -> 2; else -> 1 }
+    Row(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(start = 20.dp, end = 20.dp, top = 7.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.Center
     ) {
-        entries.forEach { entry ->
-            NavigationBarItem(
-                selected = selected == entry.third,
-                onClick = { onSelect(entry.third) },
-                icon = { Icon(entry.second, contentDescription = entry.first, modifier = Modifier.size(if (selected == entry.third) 25.dp else 22.dp)) },
-                label = { Text(entry.first, fontSize = 9.sp, maxLines = 1, fontWeight = if (selected == entry.third) FontWeight.Bold else FontWeight.Medium) },
-                alwaysShowLabel = true,
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Lilac,
-                    selectedTextColor = Lilac,
-                    unselectedIconColor = Color(0xFF858585),
-                    unselectedTextColor = Color(0xFF858585),
-                    indicatorColor = Lilac.copy(alpha = .12f)
-                )
-            )
+        Surface(
+            shape = RoundedCornerShape(30.dp),
+            color = Color(0xFFF3E5D8),
+            modifier = Modifier.fillMaxWidth().border(1.dp, JournalInk, RoundedCornerShape(30.dp)),
+            shadowElevation = 5.dp
+        ) {
+            Row(Modifier.padding(horizontal = 8.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                val items = listOf(Triple(s("Store", "فروشگاه", english), Icons.Rounded.ShoppingBag, 0), Triple(s("Personal", "شخصی", english), Icons.Rounded.AutoStories, 1), Triple(s("Profile", "پروفایل", english), Icons.Rounded.PersonOutline, 2))
+                items.forEachIndexed { index, entry ->
+                    val active = selectedNav == index
+                    Surface(
+                        modifier = Modifier.weight(1f).height(48.dp).clickable { onSelect(when (index) { 0 -> 5; 1 -> 0; else -> 6 }) },
+                        shape = RoundedCornerShape(24.dp),
+                        color = if (active) JournalRed else Color.Transparent
+                    ) {
+                        Row(Modifier.fillMaxSize().padding(horizontal = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                            Icon(entry.second, null, tint = if (active) Color(0xFFFFF8F0) else JournalInk, modifier = Modifier.size(19.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(entry.first, color = if (active) Color(0xFFFFF8F0) else JournalInk, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                        }
+                    }
+                }
+            }
         }
     }
 }
