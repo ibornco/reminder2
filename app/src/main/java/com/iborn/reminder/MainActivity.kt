@@ -189,9 +189,7 @@ class MainActivity : ComponentActivity() {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(s("A LITTLE MORE INTENTIONAL", "با نظم و آرامش", english), color = JournalRed, fontSize = 9.sp, letterSpacing = 1.5.sp, fontWeight = FontWeight.Bold)
-                    Text(s("Your day,
-beautifully planned.", "روزت رو
-زیباتر برنامه‌ریزی کن.", english), color = JournalInk, fontSize = 28.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
+                    Text(s("Your day,\nbeautifully planned.", "روزت رو\nزیباتر برنامه‌ریزی کن.", english), color = JournalInk, fontSize = 28.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif)
                 }
                 Surface(shape = CircleShape, color = Color(0xFFE8D1C0), modifier = Modifier.size(58.dp).border(1.dp, JournalInk, CircleShape)) {
                     Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.AutoStories, null, tint = JournalRed, modifier = Modifier.size(27.dp)) }
@@ -240,9 +238,7 @@ beautifully planned.", "روزت رو
                         Text(s("BIRTHDAYS", "تولدها", english), color = JournalRed, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = .7.sp)
                     }
                     Spacer(Modifier.height(10.dp))
-                    if (birthdays.isEmpty()) Text(s("No birthdays
-coming up", "تولد نزدیکی
-ثبت نشده", english), color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
+                    if (birthdays.isEmpty()) Text(s("No birthdays\ncoming up", "تولد نزدیکی\nثبت نشده", english), color = Muted, fontSize = 12.sp, lineHeight = 17.sp)
                     else birthdays.forEach { Text("• ${it.title}", color = JournalInk, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(vertical = 3.dp)) }
                     Spacer(Modifier.height(8.dp))
                     Text(s("Open list →", "مشاهده ←", english), color = JournalRed, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { goReminders() })
